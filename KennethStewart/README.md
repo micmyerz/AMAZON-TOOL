@@ -1,2 +1,0 @@
-# KennethStewart
-assignment changes
