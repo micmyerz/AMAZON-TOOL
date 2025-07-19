@@ -171,6 +171,7 @@ dmypy.json
 .pytype/
  
 # Cython debug symbols
+<<<<<<< HEAD
 cython_debug/
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -219,3 +220,6 @@ AmazonTool_API_KEY
 .idea/
 
 AmazonTool_API_KEY
+=======
+cython_debug/
+>>>>>>> c158d70 (configuration changes)
