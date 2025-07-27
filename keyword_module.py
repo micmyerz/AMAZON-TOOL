@@ -1,87 +1,116 @@
+# keyword_module.py
+
 import requests
 import json
-import pandas as pd
 import re
 from time import sleep
-from pytrends.request import TrendReq
 from random import uniform
+from pytrends.request import TrendReq
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import AgglomerativeClustering
 
-# High-intent keywords to look for
-HIGH_INTENT = ["buy", "best", "top", "cheap", "affordable", "top rated"]
-USER_AGENT = "Mozilla/5.0"
-SEM_API_KEY = "your_semrush_api_key"  # Replace with your actual SEMrush API key
-
-def get_amazon_suggestions(keyword):
-    url = f"https://completion.amazon.com/search/complete"
-    params = {"method": "completion", "search-alias": "aps", "mkt": 1, "q": keyword}
-    headers = {"User-Agent": USER_AGENT}
-    try:
-        response = requests.get(url, headers=headers, params=params)
-        if response.status_code == 200:
-            return json.loads(response.text)[1]
-    except Exception as e:
-        print(f"Amazon error for {keyword}: {e}")
-    return []
-
+# Initialize Google Trends client
 pytrends = TrendReq(hl='en-US', tz=360)
 
-def get_trend_score(keyword):
+# High-intent terms for filtering
+HIGH_INTENT_TERMS = ["buy", "best", "top", "cheap", "affordable", "review", "discount"]
+
+
+def fetch_related_keywords(seed_keyword: str, max_results: int = 20) -> list:
+    """Fetch keyword suggestions from Google Suggest API."""
     try:
-        pytrends.build_payload([keyword], cat=0, timeframe='now 7-d', geo='', gprop='')
+        response = requests.get(
+            "https://suggestqueries.google.com/complete/search",
+            params={"client": "firefox", "q": seed_keyword},
+            timeout=10
+        )
+        suggestions = response.json()[1]
+        return suggestions[:max_results]
+    except Exception as e:
+        print(f"Error fetching keywords for '{seed_keyword}':", e)
+        return [seed_keyword]  # fallback to seed
+
+
+def get_trend_score(keyword: str) -> int:
+    """Return average Google Trends interest over the last 7 days."""
+    try:
+        pytrends.build_payload([keyword], timeframe='now 7-d')
         df = pytrends.interest_over_time()
-        return int(df[keyword].mean()) if not df.empty else 0
-    except:
+        if df.empty:
+            return 0
+        return int(df[keyword].mean())
+    except Exception as e:
+        print(f"Google Trends error for '{keyword}': {e}")
         return 0
 
-def get_semrush_data(keyword):
-    url = "https://api.semrush.com"
-    params = {
-        "type": "phrase_this",
-        "key": SEM_API_KEY,
-        "export_columns": "Ph,Nq,Co,Kd",
-        "phrase": keyword,
-        "database": "us"
-    }
-    try:
-        res = requests.get(url, params=params)
-        lines = res.text.strip().split('\n')
-        if len(lines) > 1:
-            parts = lines[1].split(';')
-            return {
-                "volume": int(parts[1]),
-                "competition": float(parts[2]),
-                "kd": float(parts[3])
-            }
-    except Exception as e:
-        print(f"SEMrush error for {keyword}: {e}")
-    return {"volume": 0, "competition": 1.0, "kd": 100.0}
 
-def is_high_intent(keyword):
-    return any(term in keyword.lower() for term in HIGH_INTENT)
+def is_high_intent(keyword: str) -> bool:
+    """Check if keyword contains high-intent terms."""
+    return any(re.search(rf"\b{term}\b", keyword, re.I) for term in HIGH_INTENT_TERMS)
 
-def fetch_keywords(seeds, trend_min, vol_min, comp_max, require_intent):
-    all_keywords = []
 
+def fetch_filtered_keywords(
+    seed_keyword: str,
+    max_results: int = 20,
+    trend_min: int = 10,
+    require_intent: bool = True
+) -> list:
+    """
+    Fetch keywords filtered by Google Trends interest and intent terms.
+    """
+    raw_keywords = fetch_related_keywords(seed_keyword, max_results)
+    filtered_keywords = []
+
+    for kw in raw_keywords:
+        trend_score = get_trend_score(kw)
+
+        if (
+            trend_score >= trend_min and
+            (not require_intent or is_high_intent(kw))
+        ):
+            filtered_keywords.append(kw)
+        sleep(uniform(1, 2))  # Be polite to APIs
+
+    return filtered_keywords
+
+
+def cluster_keywords(keywords: list, distance_threshold=1.0) -> dict:
+    """
+    Cluster similar keywords using TF-IDF and Agglomerative Clustering.
+
+    Returns a dict: cluster_id -> list of keywords.
+    """
+    if not keywords:
+        return {}
+
+    vectorizer = TfidfVectorizer(stop_words='english')
+    X = vectorizer.fit_transform(keywords)
+
+    clustering_model = AgglomerativeClustering(
+        n_clusters=None,
+        distance_threshold=distance_threshold,
+        affinity='cosine',
+        linkage='average'
+    )
+
+    clustering_model.fit(X.toarray())
+    labels = clustering_model.labels_
+
+    clusters = {}
+    for label, keyword in zip(labels, keywords):
+        clusters.setdefault(label, []).append(keyword)
+
+    return clusters
+
+
+if __name__ == "__main__":
+    # Simple test
+    seeds = ["wireless earbuds", "camping stove"]
     for seed in seeds:
-        suggestions = get_amazon_suggestions(seed)
-        for suggestion in suggestions:
-            trend = get_trend_score(suggestion)
-            sleep(uniform(1, 2))
-            sem = get_semrush_data(suggestion)
-            sleep(uniform(1, 2))
-
-            if (trend >= trend_min and
-                sem['volume'] >= vol_min and
-                sem['competition'] <= comp_max and
-                (not require_intent or is_high_intent(suggestion))):
-
-                all_keywords.append({
-                    "seed": seed,
-                    "keyword": suggestion,
-                    "trend_score": trend,
-                    "volume": sem["volume"],
-                    "competition": sem["competition"],
-                    "kd": sem["kd"]
-                })
-
-    return pd.DataFrame(all_keywords)
+        print(f"\nSeed keyword: {seed}")
+        filtered = fetch_filtered_keywords(seed)
+        clusters = cluster_keywords(filtered, distance_threshold=0.7)
+        for cid, kws in clusters.items():
+            print(f"Cluster {cid}:")
+            for kw in kws:
+                print(f" - {kw}")
