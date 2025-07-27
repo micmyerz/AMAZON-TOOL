@@ -1,0 +1,5 @@
+streamlit
+openai
+requests
+pytrends
+scikit-learn
