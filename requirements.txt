@@ -1,5 +1,5 @@
 streamlit
 openai
 pytrends
-scikit-learn
 requests
+scikit-learn
