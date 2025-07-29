@@ -52,3 +52,9 @@ print("Python version:", sys.version)
 
 import sklearn
 print("Scikit-learn version:", sklearn.__version__)
+import sys
+import pkg_resources
+
+st.write("Python version:", sys.version)
+st.write("Installed packages:")
+st.write([p.project_name for p in pkg_resources.working_set])
