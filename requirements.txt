@@ -1,8 +1,5 @@
-joblib==1.2.0
-numpy==1.23.5
+streamlit
 openai
 pytrends
 requests
-scikit-learn==1.2.2
-scipy==1.10.1
-streamlit
+scikit-learn==1.4.2
