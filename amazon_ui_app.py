@@ -46,15 +46,9 @@ if "last_keywords" in st.session_state:
             st.write("**Description:**")
             st.markdown(listing["description"])
 
-# Debug: Check if scikit-learn is installed (optional)
-import sys
-print("Python version:", sys.version)
-
-import sklearn
-print("Scikit-learn version:", sklearn.__version__)
-import sys
-import pkg_resources
-
-st.write("Python version:", sys.version)
-st.write("Installed packages:")
-st.write([p.project_name for p in pkg_resources.working_set])
+# DEBUG: Check if sklearn is installed
+try:
+    import sklearn
+    st.success(f"scikit-learn version: {sklearn.__version__}")
+except ImportError:
+    st.error("scikit-learn is NOT installed")
