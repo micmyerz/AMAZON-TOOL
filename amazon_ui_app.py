@@ -45,3 +45,10 @@ if "last_keywords" in st.session_state:
                 st.markdown(f"- {bullet}")
             st.write("**Description:**")
             st.markdown(listing["description"])
+
+# Debug: Check if scikit-learn is installed (optional)
+import sys
+print("Python version:", sys.version)
+
+import sklearn
+print("Scikit-learn version:", sklearn.__version__)
